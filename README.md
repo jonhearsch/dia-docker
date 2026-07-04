@@ -1,6 +1,6 @@
 # dia-docker
 
-Auto-built Docker image for [Dia TTS](https://github.com/nari-labs/dia) by Nari Labs — a 1.6B text-to-dialogue model. Targets NVIDIA GPUs (CUDA 12.6 / RTX 3060).
+Auto-built Docker image for [Dia TTS](https://github.com/nari-labs/dia) by Nari Labs — a 1.6B text-to-dialogue model. Targets NVIDIA GPUs (CUDA 12.6).
 
 Since Dia doesn't publish releases, the nightly workflow tracks the latest commit on `main` and rebuilds when it changes.
 
@@ -15,16 +15,13 @@ Example:
 [S1] Right? Let's try it out.
 ```
 
-## Unraid setup
-
-**Prerequisites:** Nvidia GPU plugin installed via Community Apps.
+## Quick start
 
 ```bash
-mkdir -p /mnt/user/appdata/dia/{hf-cache,outputs}
 docker compose up -d
 ```
 
-Open: `http://UNRAID-IP:7861`
+Open: `http://localhost:7861`
 
 First run downloads the Dia-1.6B model from HuggingFace (~3GB) into the `hf-cache` volume — takes a few minutes. Subsequent starts are instant.
 
