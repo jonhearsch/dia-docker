@@ -2,9 +2,7 @@
 # Dia TTS (nari-labs/dia) | NVIDIA GPU
 # https://github.com/nari-labs/dia
 
-ARG TORCH_VERSION=2.6.0
-ARG CUDA_TAG=cuda12.6-cudnn9-runtime
-FROM pytorch/pytorch:${TORCH_VERSION}-${CUDA_TAG}-ubuntu22.04
+FROM nvidia/cuda:12.6.3-runtime-ubuntu22.04
 
 ARG DIA_COMMIT=main
 ENV DEBIAN_FRONTEND=noninteractive \
@@ -23,6 +21,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         curl \
         ffmpeg \
         libsndfile1 \
+        python3.11 \
+        python3.11-venv \
     && rm -rf /var/lib/apt/lists/*
 
 # Non-root user (UID 99 / GID 100 = nobody:users, matches Unraid share permissions)
@@ -39,23 +39,23 @@ RUN git clone https://github.com/nari-labs/dia.git . \
     && git checkout "${DIA_COMMIT}"
 
 # Install deps via uv into a venv
-# torch/torchaudio already in the base image — install everything else
-RUN uv venv venv --python python3 --seed
+RUN uv venv venv --python python3.11 --seed
 ENV VIRTUAL_ENV="/app/venv" \
     PATH="/app/venv/bin:$PATH"
 
-RUN uv pip install --no-build-isolation \
+RUN uv pip install \
         --index-url https://pypi.org/simple \
         --extra-index-url https://download.pytorch.org/whl/cu126 \
+        "torch==2.6.0" \
+        "torchaudio==2.6.0" \
+        "triton==3.2.0" \
         "descript-audio-codec>=1.0.0" \
         "gradio>=5.25.2" \
         "huggingface-hub>=0.30.2" \
         "numpy>=2.2.4" \
         "pydantic>=2.11.3" \
         "safetensors>=0.5.3" \
-        "soundfile>=0.13.1" \
-        "torchaudio==2.6.0" \
-        "triton==3.2.0"
+        "soundfile>=0.13.1"
 
 EXPOSE 7860
 
