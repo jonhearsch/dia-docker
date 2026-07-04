@@ -1,0 +1,37 @@
+services:
+  dia:
+    image: ghcr.io/jonhearsch/dia:latest
+    container_name: dia-tts
+    restart: unless-stopped
+    ports:
+      - "7861:7860"    # 7861 to avoid conflict with sd-webui-forge on 7860
+    volumes:
+      # HuggingFace model cache — Dia-1.6B is ~3GB, keep it across rebuilds
+      - /mnt/user/appdata/dia/hf-cache:/data/hf-cache
+      # Generated audio outputs
+      - /mnt/user/appdata/dia/outputs:/data/outputs
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=compute,utility
+      - HF_HOME=/data/hf-cache
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+
+  watchtower:
+    image: containrrr/watchtower
+    container_name: watchtower-dia
+    restart: unless-stopped
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      - WATCHTOWER_POLL_INTERVAL=3600
+      - WATCHTOWER_CLEANUP=true
+      - WATCHTOWER_SCOPE=dia
+    command: --scope dia
+    labels:
+      - "com.centurylinklabs.watchtower.scope=dia"

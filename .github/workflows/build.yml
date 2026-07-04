@@ -1,0 +1,86 @@
+name: Build and Push Docker Image
+
+on:
+  schedule:
+    - cron: "0 4 * * *"   # nightly at 4am UTC
+  workflow_dispatch:
+    inputs:
+      force:
+        description: "Force rebuild even if already up to date"
+        type: boolean
+        default: false
+
+jobs:
+  check-and-build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Get latest dia commit SHA
+        id: dia_commit
+        run: |
+          SHA=$(curl -fsSL \
+            -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+            https://api.github.com/repos/nari-labs/dia/commits/main \
+            | jq -r '.sha[:7]')
+          echo "sha=${SHA}" >> "$GITHUB_OUTPUT"
+          echo "Latest dia commit: ${SHA}"
+
+      - name: Get last built commit
+        id: last_built
+        run: |
+          LAST=$(cat .last-built-commit 2>/dev/null || echo "none")
+          echo "sha=${LAST}" >> "$GITHUB_OUTPUT"
+          echo "Last built: ${LAST}"
+
+      - name: Determine whether to build
+        id: should_build
+        run: |
+          if [ "${{ steps.dia_commit.outputs.sha }}" != "${{ steps.last_built.outputs.sha }}" ] || [ "${{ inputs.force }}" == "true" ]; then
+            echo "result=true" >> "$GITHUB_OUTPUT"
+            echo "Building ${{ steps.dia_commit.outputs.sha }} (force=${{ inputs.force }})"
+          else
+            echo "result=false" >> "$GITHUB_OUTPUT"
+            echo "Already on ${{ steps.dia_commit.outputs.sha }}, nothing to do."
+          fi
+
+      - name: Log in to GitHub Container Registry
+        if: steps.should_build.outputs.result == 'true'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        if: steps.should_build.outputs.result == 'true'
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push
+        if: steps.should_build.outputs.result == 'true'
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          build-args: |
+            DIA_COMMIT=${{ steps.dia_commit.outputs.sha }}
+          tags: |
+            ghcr.io/jonhearsch/dia:${{ steps.dia_commit.outputs.sha }}
+            ghcr.io/jonhearsch/dia:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Record built commit
+        if: steps.should_build.outputs.result == 'true'
+        run: |
+          echo "${{ steps.dia_commit.outputs.sha }}" > .last-built-commit
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add .last-built-commit
+          git commit -m "chore: built dia@${{ steps.dia_commit.outputs.sha }}"
+          git push
